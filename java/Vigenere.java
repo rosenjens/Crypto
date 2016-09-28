@@ -33,12 +33,5 @@ class Vigenere {
         return str;
     }
 
-    public static void main(String[] args){
-        Vigenere vig = new Vigenere("b","abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-        String code = vig.encode("Mitt Namn!?");
-        System.out.println(code);
-        System.out.println(vig.decode(code));
-
-    }
 }
 
