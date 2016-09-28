@@ -1,40 +1,30 @@
 class Vigenere {
     private String alphabet;
-    private String key;
 
-    public Vigenere(String key, String alphabet){
-        if (key == null || alphabet == null){
+    public Vigenere(String alphabet){
+        if (alphabet == null){
             throw new IllegalArgumentException();
         }
         this.alphabet = alphabet;
-        this.key = key;
     }
 
     public void changeAlphabet(String alphabet){
         this.alphabet = alphabet;
     }
     
-    public void changeKey(String key){
-        this.key = key;
-    }
-    
     public String getAlphabet(){
         return alphabet;
     }
     
-    public String getKey(){
-        return key;
+    public String encrypt(String str, String key){
+        return vig(str, '+', key);
     }
 
-    public String encode(String str){
-        return vig(str, '+');
+    public String decrypt(String code, String key){
+        return vig(code, '-', key);
     }
 
-    public String decode(String code){
-        return vig(code, '-');
-    }
-
-    private String vig(String s, char sign){
+    private String vig(String s, char sign, String key){
         String str = "";
 
         if (key == "" || alphabet == ""){
