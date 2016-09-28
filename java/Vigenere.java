@@ -12,17 +12,33 @@ class Vigenere {
         for (int i = 0; i < str.length(); i++){
             int c = alphabet.indexOf(str.charAt(i));
             if (c != -1)
-                code += alphabet.charAt( (c + alphabet.indexOf(key.charAt(i%key.length()))) % alphabet.length());
+                code += alphabet.charAt((c + alphabet.indexOf(key.charAt(i%key.length()))) % alphabet.length());
             else
                 code += str.charAt(i);
         }
+
         return code; 
     }
 
-    public String decode(String str){
-    
-        return "";
+    public String decode(String code){
+        String str = "";
+        for (int i = 0; i < code.length(); i++){
+            int c = alphabet.indexOf(code.charAt(i));
+            if (c != -1)
+                str += alphabet.charAt((c - alphabet.indexOf(key.charAt(i%key.length()))) % alphabet.length());
+            else
+                str += code.charAt(i);
+        }
+
+        return str;
     }
 
+    public static void main(String[] args){
+        Vigenere vig = new Vigenere("b","abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+        String code = vig.encode("Mitt Namn!?");
+        System.out.println(code);
+        System.out.println(vig.decode(code));
+
+    }
 }
 
