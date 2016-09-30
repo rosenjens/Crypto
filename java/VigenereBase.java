@@ -1,21 +1,21 @@
-class Vigenere {
+class VigenereBase {
     private String alphabet;
 
-    public Vigenere(String alphabet){
+    public VigenereBase(String alphabet){
         if (alphabet == null){
             throw new IllegalArgumentException();
         }
         this.alphabet = alphabet;
     }
 
-    public void changeAlphabet(String alphabet){
+    public void setAlphabet(String alphabet){
         this.alphabet = alphabet;
     }
-    
+
     public String getAlphabet(){
         return alphabet;
     }
-    
+
     public String encrypt(String str, String key){
         return vig(str, '+', key);
     }
@@ -26,7 +26,6 @@ class Vigenere {
 
     private String vig(String s, char sign, String key){
         String str = "";
-
         if (key == "" || alphabet == ""){
             str = s;
         }else{
