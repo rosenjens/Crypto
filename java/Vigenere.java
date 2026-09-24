@@ -13,10 +13,11 @@ public class Vigenere extends VigenereBase{
             key = key.toUpperCase();
         }
         if (trim) {
-            String newStr = "";
+            StringBuilder newStr = new StringBuilder(str.length());
             for (char c : str.toCharArray())
-                newStr += (getAlphabet().indexOf(c) != -1 ? c : "");
-            str = newStr;
+                if (getAlphabet().indexOf(c) != -1)
+                    newStr.append(c);
+            str = newStr.toString();
         }
         return encrypt(str, key);
     }
