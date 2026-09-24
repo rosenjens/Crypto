@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class Vigenere extends VigenereBase{
 
@@ -26,7 +27,7 @@ public class Vigenere extends VigenereBase{
         return decrypt(prepare(code, toCapitals, trim), key);
     }
 
-    private String prepare(String str, boolean toCapitals, boolean trim) {
+    String prepare(String str, boolean toCapitals, boolean trim) {
         if (toCapitals) {
             str = str.toUpperCase();
         }
@@ -60,7 +61,7 @@ public class Vigenere extends VigenereBase{
 
     private static final String USAGE = """
         Usage: java Vigenere <encrypt|decrypt> <key> [text...] [options]
-               java Vigenere crack [text...] [--caps] [--max-key-length <n>]
+               java Vigenere crack [text...] [--cipher caesar] [--caps] [--max-key-length <n>]
 
         Reads the text from standard input if none is given.
 
@@ -68,7 +69,11 @@ public class Vigenere extends VigenereBase{
         alphabet, without knowing it, and prints the key and the plaintext.
         It needs roughly 30 letters of ciphertext per key letter.
 
+        The Caesar key is a number, the shift. Playfair uses only the letters
+        A-Z of the text and key, in either case, with J treated as I.
+
         Options:
+          --cipher <name>         vigenere (default), caesar or playfair
           --alphabet <chars>      alphabet to use (default A-Z, or the Base64
                                   characters with --base64)
           --caps                  uppercase the text and key first
@@ -87,6 +92,7 @@ public class Vigenere extends VigenereBase{
     /** Runs the command line tool and returns the exit code. */
     static int run(String[] args, InputStream in, PrintStream out, PrintStream err) {
         String alphabet = null;
+        String cipher = "vigenere";
         boolean caps = false, trim = false, base64 = false;
         Integer maxKeyLength = null;
         List<String> positional = new ArrayList<>();
@@ -102,6 +108,12 @@ public class Vigenere extends VigenereBase{
                         return usageError(err, "--alphabet needs a value");
                     }
                     alphabet = args[i];
+                }
+                case "--cipher" -> {
+                    if (++i >= args.length) {
+                        return usageError(err, "--cipher needs a value");
+                    }
+                    cipher = args[i];
                 }
                 case "--max-key-length" -> {
                     if (++i >= args.length) {
@@ -134,11 +146,21 @@ public class Vigenere extends VigenereBase{
         if (!crack && !mode.equals("encrypt") && !mode.equals("decrypt")) {
             return usageError(err, "mode must be encrypt, decrypt or crack, not " + mode);
         }
-        if (crack && (alphabet != null || base64 || trim)) {
-            return usageError(err, "crack only supports --caps and --max-key-length");
+        boolean caesar = cipher.equals("caesar"), playfair = cipher.equals("playfair");
+        if (!caesar && !playfair && !cipher.equals("vigenere")) {
+            return usageError(err, "cipher must be vigenere, caesar or playfair, not " + cipher);
         }
-        if (!crack && maxKeyLength != null) {
-            return usageError(err, "--max-key-length only applies to crack");
+        if (crack && playfair) {
+            return usageError(err, "crack supports the vigenere and caesar ciphers");
+        }
+        if (crack && (alphabet != null || base64 || trim)) {
+            return usageError(err, "crack only supports --cipher, --caps and --max-key-length");
+        }
+        if (maxKeyLength != null && (!crack || caesar)) {
+            return usageError(err, "--max-key-length only applies to crack with the vigenere cipher");
+        }
+        if (playfair && (alphabet != null || base64)) {
+            return usageError(err, "--alphabet and --base64 do not apply to playfair");
         }
         if (!crack && positional.size() < 2) {
             return usageError(err, "missing key");
@@ -163,6 +185,12 @@ public class Vigenere extends VigenereBase{
 
         if (crack) {
             try {
+                if (caesar) {
+                    var result = CaesarCracker.crack(caps ? text.toUpperCase() : text);
+                    out.println("Key: " + result.shift());
+                    out.println(result.plaintext());
+                    return 0;
+                }
                 var result = VigenereCracker.crack(caps ? text.toUpperCase() : text,
                     maxKeyLength != null ? maxKeyLength : VigenereCracker.DEFAULT_MAX_KEY_LENGTH);
                 out.println("Key: " + result.key());
@@ -179,27 +207,51 @@ public class Vigenere extends VigenereBase{
             alphabet = base64 ? BASE64_ALPHABET : DEFAULT_ALPHABET;
         }
 
+        boolean enc = mode.equals("encrypt");
         try {
-            var v = new Vigenere(alphabet);
-            boolean enc = mode.equals("encrypt");
             String result;
-            if (base64 && enc) {
-                result = v.encryptBase64(text, key);
-            } else if (base64) {
+            if (playfair) {
+                result = enc ? Playfair.encrypt(text, key) : Playfair.decrypt(text, key);
+            } else if (caesar) {
+                int shift;
                 try {
-                    result = v.decryptBase64(text, key);
-                } catch (IllegalArgumentException e) {
-                    err.println("Error: could not decrypt; check the key, alphabet and ciphertext");
+                    shift = Integer.parseInt(key);
+                } catch (NumberFormatException e) {
+                    err.println("Error: the Caesar key must be a whole number, not " + key);
                     return 1;
                 }
+                var c = new Caesar(alphabet);
+                if (base64 && enc) {
+                    result = c.encryptBase64(text, shift);
+                } else if (base64) {
+                    result = decryptBase64(() -> c.decryptBase64(text, shift));
+                } else {
+                    result = enc ? c.encrypt(text, shift, caps, trim) : c.decrypt(text, shift, caps, trim);
+                }
             } else {
-                result = enc ? v.encrypt(text, key, caps, trim) : v.decrypt(text, key, caps, trim);
+                var v = new Vigenere(alphabet);
+                if (base64 && enc) {
+                    result = v.encryptBase64(text, key);
+                } else if (base64) {
+                    result = decryptBase64(() -> v.decryptBase64(text, key));
+                } else {
+                    result = enc ? v.encrypt(text, key, caps, trim) : v.decrypt(text, key, caps, trim);
+                }
             }
             out.println(result);
             return 0;
         } catch (IllegalArgumentException e) {
             err.println("Error: " + (e.getMessage() != null ? e.getMessage() : "invalid argument"));
             return 1;
+        }
+    }
+
+    /** Runs a Base64 decryption, replacing any failure with one message, as the cause is unclear. */
+    private static String decryptBase64(Supplier<String> decryption) {
+        try {
+            return decryption.get();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("could not decrypt; check the key, alphabet and ciphertext");
         }
     }
 

@@ -44,6 +44,17 @@ public class VigenereTest {
         test("crack rejects bad input", VigenereTest::crackErrors);
         test("cli crack", VigenereTest::cliCrack);
         test("cli crack errors", VigenereTest::cliCrackErrors);
+        test("caesar textbook example", VigenereTest::caesarExample);
+        test("caesar shifts wrap and can be negative", VigenereTest::caesarShifts);
+        test("caesar options and base64", VigenereTest::caesarOptions);
+        test("caesar crack", VigenereTest::caesarCrack);
+        test("cli caesar", VigenereTest::cliCaesar);
+        test("playfair textbook example", VigenereTest::playfairExample);
+        test("playfair grid", VigenereTest::playfairGrid);
+        test("playfair fillers and J", VigenereTest::playfairFillers);
+        test("playfair round trip", VigenereTest::playfairRoundTrip);
+        test("playfair rejects bad input", VigenereTest::playfairErrors);
+        test("cli playfair", VigenereTest::cliPlayfair);
 
         System.out.println(passed + " passed, " + failures.size() + " failed");
         for (String f : failures) {
@@ -246,6 +257,131 @@ public class VigenereTest {
         assertEquals("2", String.valueOf(cli("x", "crack", "--max-key-length", "0").code));
         assertEquals("2", String.valueOf(cli("x", "crack", "--max-key-length", "many").code));
         assertEquals("2", String.valueOf(cli("x", "encrypt", "K", "--max-key-length", "3").code));
+    }
+
+    private static void caesarExample() {
+        Caesar c = new Caesar(UPPER);
+        assertEquals("WKH TXLFN EURZQ IRA", c.encrypt("THE QUICK BROWN FOX", 3));
+        assertEquals("THE QUICK BROWN FOX", c.decrypt("WKH TXLFN EURZQ IRA", 3));
+    }
+
+    private static void caesarShifts() {
+        Caesar c = new Caesar(UPPER);
+        assertEquals("ABC", c.encrypt("XYZ", 3));
+        assertEquals("ABC", c.encrypt("ABC", 26));
+        assertEquals("XYZ", c.encrypt("ABC", -3));
+        assertEquals("NOP", c.encrypt("ABC", 13 + 26 * 5));
+        assertEquals("ABC", c.decrypt(c.encrypt("ABC", -1000), -1000));
+        assertEquals("HELLO", new Caesar("").encrypt("HELLO", 3));
+        assertThrows(() -> new Caesar(null));
+        assertThrows(() -> c.encrypt(null, 3));
+    }
+
+    private static void caesarOptions() {
+        Caesar c = new Caesar(UPPER);
+        assertEquals("DWWDFNDWGDZQ", c.encrypt("attack at dawn!", 3, true, true));
+        assertEquals("ATTACK AT DAWN", c.decrypt("dwwdfn dw gdzq", 3, true, false));
+        assertEquals("1001", new Caesar("01").encrypt("0110", 1));
+        // Shift 26 is 'a' in the Base64 alphabet; toCapitals must not turn it into 'A'.
+        Caesar b = new Caesar(BASE64);
+        assertEquals("a", b.encrypt("A", 26, true, false));
+        String plain = "h\u00e9llo \u2713";
+        assertEquals(plain, b.decryptBase64(b.encryptBase64(plain, 7), 7));
+    }
+
+    private static void caesarCrack() {
+        Caesar c = new Caesar(UPPER);
+        for (int shift = 0; shift < 26; shift++) {
+            var result = CaesarCracker.crack(c.encrypt(ALICE, shift));
+            assertEquals(String.valueOf(shift), String.valueOf(result.shift()));
+            assertEquals(ALICE, result.plaintext());
+        }
+        assertEquals("3", String.valueOf(CaesarCracker.crack(c.encrypt("MEET ME AT THE STATION AT NOON", 3)).shift()));
+        assertThrows(() -> CaesarCracker.crack("TOO SHORT"));
+        assertThrows(() -> CaesarCracker.crack(null));
+    }
+
+    private static void cliCaesar() {
+        assertEquals("0|WKH TXLFN EURZQ IRA\n|",
+            cli("", "encrypt", "3", "THE QUICK BROWN FOX", "--cipher", "caesar").toString());
+        assertEquals("0|THE QUICK BROWN FOX\n|",
+            cli("WKH TXLFN EURZQ IRA", "--cipher", "caesar", "decrypt", "3").toString());
+        assertEquals("0|DWWDFNDWGDZQ\n|",
+            cli("", "--cipher", "caesar", "encrypt", "3", "attack at dawn", "--caps", "--trim").toString());
+        String plain = "h\u00e9llo \u2713";
+        Cli enc = cli(plain, "--cipher", "caesar", "encrypt", "-5", "--base64");
+        assertEquals("0|" + plain + "\n|", cli(enc.out, "--cipher", "caesar", "decrypt", "-5", "--base64").toString());
+        String code = new Caesar(UPPER).encrypt(ALICE, 11);
+        assertEquals("0|Key: 11\n" + ALICE + "\n|", cli(code, "crack", "--cipher", "caesar").toString());
+        assertEquals("0|Key: 11\n" + ALICE + "\n|",
+            cli(code.toLowerCase(), "crack", "--cipher", "caesar", "--caps").toString());
+        Cli badKey = cli("", "--cipher", "caesar", "encrypt", "three", "HELLO");
+        assertTrue(badKey.code == 1 && badKey.err.contains("whole number"), "bad shift should exit 1: " + badKey.err);
+        assertEquals("2", String.valueOf(cli("x", "crack", "--cipher", "caesar", "--max-key-length", "3").code));
+        assertEquals("2", String.valueOf(cli("x", "encrypt", "K", "X", "--cipher", "rot13").code));
+        assertEquals("2", String.valueOf(cli("x", "encrypt", "K", "X", "--cipher").code));
+    }
+
+    private static void playfairExample() {
+        // From Wikipedia's Playfair article.
+        assertEquals("BMODZBXDNABEKUDMUIXMMOUVIF",
+            Playfair.encrypt("Hide the gold in the tree stump", "playfair example"));
+        assertEquals("HIDETHEGOLDINTHETREXESTUMP",
+            Playfair.decrypt("BMODZBXDNABEKUDMUIXMMOUVIF", "PLAYFAIR EXAMPLE"));
+    }
+
+    private static void playfairGrid() {
+        assertEquals("PLAYFIREXMBCDGHKNOQSTUVWZ", new String(Playfair.grid("Playfair example")));
+        assertEquals("ABCDEFGHIKLMNOPQRSTUVWXYZ", new String(Playfair.grid("")));
+        assertEquals("IABCDEFGHKLMNOPQRSTUVWXYZ", new String(Playfair.grid("jij!")));
+    }
+
+    private static void playfairFillers() {
+        String key = "MONARCHY";
+        // BALLOON is split as BA LX LO ON; the odd final letter gets an X, or a Q after an X.
+        assertEquals("BALXLOON", Playfair.decrypt(Playfair.encrypt("balloon", key), key));
+        assertEquals("CATX", Playfair.decrypt(Playfair.encrypt("CAT", key), key));
+        assertEquals("BOXQ", Playfair.decrypt(Playfair.encrypt("BOX", key), key));
+        assertEquals("XQXQ", Playfair.decrypt(Playfair.encrypt("XX", key), key));
+        assertEquals("IAMINX", Playfair.decrypt(Playfair.encrypt("jam, in", key), key));
+        assertEquals("", Playfair.encrypt("123 !", key));
+    }
+
+    private static void playfairRoundTrip() {
+        String letters = ALICE.replaceAll("[^A-Z]", "").replace('J', 'I');
+        String code = Playfair.encrypt(ALICE, "WONDERLAND");
+        assertTrue(code.matches("[A-IK-Z]*") && code.length() % 2 == 0, "bad ciphertext " + code);
+        // Every filler is an X or Q added after a letter; dropping them gives back the letters.
+        String plain = Playfair.decrypt(code, "WONDERLAND");
+        var restored = new StringBuilder();
+        for (int i = 0; i < plain.length(); i++) {
+            char c = plain.charAt(i);
+            boolean filler = (c == 'X' || c == 'Q') && i % 2 == 1
+                && (i + 1 == plain.length() || plain.charAt(i - 1) == plain.charAt(i + 1));
+            if (!filler) {
+                restored.append(c);
+            }
+        }
+        assertEquals(letters, restored.toString());
+    }
+
+    private static void playfairErrors() {
+        assertThrows(() -> Playfair.encrypt(null, "KEY"));
+        assertThrows(() -> Playfair.encrypt("HELLO", null));
+        assertThrows(() -> Playfair.decrypt("ABC", "KEY"));
+        assertThrows(() -> Playfair.decrypt("ABCC", "KEY"));
+    }
+
+    private static void cliPlayfair() {
+        assertEquals("0|BMODZBXDNABEKUDMUIXMMOUVIF\n|",
+            cli("", "--cipher", "playfair", "encrypt", "playfair example", "Hide the gold in the tree stump").toString());
+        assertEquals("0|HIDETHEGOLDINTHETREXESTUMP\n|",
+            cli("BMOD ZBXD NABE KUDM UIXM MOUV IF\n", "--cipher", "playfair", "decrypt", "PLAYFAIREXAMPLE").toString());
+        Cli odd = cli("", "--cipher", "playfair", "decrypt", "KEY", "ABC");
+        assertTrue(odd.code == 1 && odd.err.contains("even"), "odd ciphertext should exit 1: " + odd.err);
+        assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "encrypt", "K", "--base64").code));
+        assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "encrypt", "K", "--alphabet", "AB").code));
+        assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "crack").code));
     }
 
     private record Cli(int code, String out, String err) {
