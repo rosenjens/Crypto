@@ -9,6 +9,9 @@ class VigenereBase {
     }
 
     public void setAlphabet(String alphabet){
+        if (alphabet == null){
+            throw new IllegalArgumentException();
+        }
         this.alphabet = alphabet;
     }
 
@@ -25,26 +28,35 @@ class VigenereBase {
     }
 
     private String vig(String s, char sign, String key){
-        String str = "";
-        if (key == "" || alphabet == ""){
-            str = s;
-        }else{
-            for (int i = 0; i < s.length(); i++){
-                int c = alphabet.indexOf(s.charAt(i));
-                if (c != -1){
-                    if (sign == '+'){
-                        str += alphabet.charAt((c + alphabet.indexOf(key.charAt(i%key.length()))) % alphabet.length());
-                    }else{
-                        str += alphabet.charAt((c - alphabet.indexOf(key.charAt(i%key.length())) + alphabet.length()) % alphabet.length());
-                    }
-                }else{
-                    str += s.charAt(i);
-                }
+        if (s == null || key == null){
+            throw new IllegalArgumentException();
+        }
+        if (key.isEmpty() || alphabet.isEmpty()){
+            return s;
+        }
+        int[] shifts = new int[key.length()];
+        for (int i = 0; i < key.length(); i++){
+            shifts[i] = alphabet.indexOf(key.charAt(i));
+            if (shifts[i] == -1){
+                throw new IllegalArgumentException("Key character '" + key.charAt(i) + "' is not in the alphabet");
             }
         }
-
-        return str;
-
+        int n = alphabet.length();
+        StringBuilder str = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++){
+            int c = alphabet.indexOf(s.charAt(i));
+            if (c != -1){
+                int shift = shifts[i % shifts.length];
+                if (sign == '+'){
+                    str.append(alphabet.charAt((c + shift) % n));
+                }else{
+                    str.append(alphabet.charAt((c - shift + n) % n));
+                }
+            }else{
+                str.append(s.charAt(i));
+            }
+        }
+        return str.toString();
     }
 
 }
