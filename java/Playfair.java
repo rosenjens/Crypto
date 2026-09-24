@@ -67,7 +67,7 @@ public class Playfair {
     }
 
     /** The letters of the text, uppercased, with J replaced by I. */
-    private static String letters(String text) {
+    static String letters(String text) {
         if (text == null) {
             throw new IllegalArgumentException();
         }

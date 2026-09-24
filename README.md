@@ -3,7 +3,7 @@
 A small Java implementation of the [Vigenère cipher](https://en.wikipedia.org/wiki/Vigen%C3%A8re_cipher),
 usable from the command line or as a library, with an optional Base64 mode for encrypting any Unicode text,
 and a cracker that recovers the key of English ciphertext without knowing it.
-It also includes the [Caesar](#caesar-cipher) cipher, with its own cracker, and the [Playfair](#playfair-cipher) cipher.
+It also includes the [Caesar](#caesar-cipher) and [Playfair](#playfair-cipher) ciphers, each with its own cracker.
 
 > **Not for real security.** These are classical ciphers. Vigenère that can be broken with pen-and-paper
 > frequency analysis, as the [cracker](#breaking-the-cipher) below shows. This project is for learning
@@ -45,7 +45,7 @@ javac *.java
 
 ```
 java Vigenere <encrypt|decrypt> <key> [text...] [options]
-java Vigenere crack [text...] [--cipher caesar] [--caps] [--max-key-length <n>]
+java Vigenere crack [text...] [--cipher caesar|playfair] [--caps] [--max-key-length <n>]
 ```
 
 The text can be given as arguments or piped in on standard input.
@@ -174,7 +174,48 @@ and `--alphabet` and `--base64` are not supported. A pair cannot hold the same l
 put between doubled letters (`TREE` becomes `TR EX ES`), and an `X` is added to an odd number of letters
 (a `Q` if the last letter is itself an `X`). Decryption cannot tell these fillers apart from real letters,
 so it leaves them in, as in `TREXES` above. Ciphertext with an odd number of letters, or a pair of the same
-letter, is rejected. There is no Playfair cracker.
+letter, is rejected.
+
+### Breaking Playfair
+
+`crack --cipher playfair` finds a grid for English ciphertext without knowing the key, and prints the grid's
+25 letters, row by row, and the decrypted text. The grid works as a key for `decrypt`.
+
+```sh
+$ java Vigenere --cipher playfair encrypt "playfair example" < alice.txt > secret.txt
+$ java Vigenere --cipher playfair crack < secret.txt
+Key: CDGHBNOQSKUVWZTLAYFPREXMI
+ALICEWASBEGINXNINGTOGETVERYTIREDOFSITXTINGBYHERSISTERONTHEBANKANDOFHAVINGNOTHINGTODO...
+```
+
+That grid is the `PLAYFAIR EXAMPLE` grid shown above, rotated: it starts from the third row, and each row
+starts from its second letter. Rotating the rows or columns of a grid, or swapping its rows with its columns,
+does not change how it encrypts, so the cracker cannot tell these grids apart and may return any of them.
+The keyword itself is lost too: only the grid it made can be found.
+
+Counting letters does not help here, because Playfair encrypts pairs of letters, and there are far too many
+grids to try them all. Instead the cracker searches the grids with
+[simulated annealing](https://en.wikipedia.org/wiki/Simulated_annealing):
+
+1. **Start anywhere.** Fill a grid with the letters in a random order.
+2. **Make a small change.** Usually swap two letters, and sometimes swap two rows or columns or flip the grid.
+3. **Score it.** Decrypt with the changed grid and measure how much the result looks like English, using how
+   often each run of three letters (`THE`, `ING`, …) occurs in English books.
+4. **Keep or undo.** Keep the change if the score went up. Also keep some changes that make it worse, so the
+   search does not get stuck on a grid that is only partly right, but fewer and fewer as it goes on.
+   After a million changes, the best grid seen wins.
+5. **Try again if needed.** If the text still does not look like English, start again from a new random
+   grid, up to 10 times.
+
+The search is random but always starts from the same seed, so the same ciphertext gives the same answer.
+
+It needs more text than the other crackers, and time. Across 100 random grids and passages of English
+for each length, it recovered the text from 97 of 100 at 300 letters, 90 at 200 and 53 at 150, and from 99
+at 600 letters. It takes a few seconds on average, and up to about 15 when it has to start again many times.
+Only the first 600 letters are used to search, so longer texts take no longer. It refuses fewer than 100 letters.
+
+The statistics come from English novels, so text that reads very differently, such as a list of names,
+may defeat it.
 
 ## Library
 
@@ -208,6 +249,7 @@ CaesarCracker.crack(ciphertext);                    // result.shift(), result.pl
 
 Playfair.encrypt("Hide the gold", "playfair example");   // "BMODZBXDNAGE"
 Playfair.decrypt("BMODZBXDNAGE", "PLAYFAIR EXAMPLE");    // "HIDETHEGOLDX"
+PlayfairCracker.crack(ciphertext);                       // result.key(), result.plaintext()
 ```
 
 `IllegalArgumentException` is thrown for a null argument, a null alphabet, a key character that is not in

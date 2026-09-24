@@ -61,13 +61,15 @@ public class Vigenere extends VigenereBase{
 
     private static final String USAGE = """
         Usage: java Vigenere <encrypt|decrypt> <key> [text...] [options]
-               java Vigenere crack [text...] [--cipher caesar] [--caps] [--max-key-length <n>]
+               java Vigenere crack [text...] [--cipher caesar|playfair] [--caps] [--max-key-length <n>]
 
         Reads the text from standard input if none is given.
 
         crack finds the key of English text encrypted with the default A-Z
         alphabet, without knowing it, and prints the key and the plaintext.
-        It needs roughly 30 letters of ciphertext per key letter.
+        It needs roughly 30 letters of ciphertext per key letter. For playfair
+        it searches for the grid, which can take several seconds, and needs
+        about 300 letters.
 
         The Caesar key is a number, the shift. Playfair uses only the letters
         A-Z of the text and key, in either case, with J treated as I.
@@ -150,13 +152,10 @@ public class Vigenere extends VigenereBase{
         if (!caesar && !playfair && !cipher.equals("vigenere")) {
             return usageError(err, "cipher must be vigenere, caesar or playfair, not " + cipher);
         }
-        if (crack && playfair) {
-            return usageError(err, "crack supports the vigenere and caesar ciphers");
-        }
         if (crack && (alphabet != null || base64 || trim)) {
             return usageError(err, "crack only supports --cipher, --caps and --max-key-length");
         }
-        if (maxKeyLength != null && (!crack || caesar)) {
+        if (maxKeyLength != null && (!crack || caesar || playfair)) {
             return usageError(err, "--max-key-length only applies to crack with the vigenere cipher");
         }
         if (playfair && (alphabet != null || base64)) {
@@ -185,6 +184,12 @@ public class Vigenere extends VigenereBase{
 
         if (crack) {
             try {
+                if (playfair) {
+                    var result = PlayfairCracker.crack(text);
+                    out.println("Key: " + result.key());
+                    out.println(result.plaintext());
+                    return 0;
+                }
                 if (caesar) {
                     var result = CaesarCracker.crack(caps ? text.toUpperCase() : text);
                     out.println("Key: " + result.shift());
@@ -197,7 +202,7 @@ public class Vigenere extends VigenereBase{
                 out.println(result.plaintext());
                 return 0;
             } catch (IllegalArgumentException e) {
-                boolean lowercase = !caps && text.chars().anyMatch(c -> c >= 'a' && c <= 'z');
+                boolean lowercase = !caps && !playfair && text.chars().anyMatch(c -> c >= 'a' && c <= 'z');
                 err.println("Error: " + e.getMessage() + (lowercase ? " (try --caps for lowercase text)" : ""));
                 return 1;
             }

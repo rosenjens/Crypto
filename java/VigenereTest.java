@@ -55,6 +55,9 @@ public class VigenereTest {
         test("playfair round trip", VigenereTest::playfairRoundTrip);
         test("playfair rejects bad input", VigenereTest::playfairErrors);
         test("cli playfair", VigenereTest::cliPlayfair);
+        test("playfair crack", VigenereTest::playfairCrack);
+        test("playfair crack rejects bad input", VigenereTest::playfairCrackErrors);
+        test("cli playfair crack", VigenereTest::cliPlayfairCrack);
 
         System.out.println(passed + " passed, " + failures.size() + " failed");
         for (String f : failures) {
@@ -381,7 +384,36 @@ public class VigenereTest {
         assertTrue(odd.code == 1 && odd.err.contains("even"), "odd ciphertext should exit 1: " + odd.err);
         assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "encrypt", "K", "--base64").code));
         assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "encrypt", "K", "--alphabet", "AB").code));
-        assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "crack").code));
+    }
+
+    private static void playfairCrack() {
+        for (String key : new String[] {"PLAYFAIR EXAMPLE", "MONARCHY"}) {
+            String code = Playfair.encrypt(ALICE, key);
+            var result = PlayfairCracker.crack(code);
+            assertTrue(result.key().matches("[A-IK-Z]{25}"), "key should be a grid: " + result.key());
+            assertEquals(Playfair.decrypt(code, key), result.plaintext());
+            // The grid may be a rotated or flipped copy of the original, but it encrypts the same way.
+            assertEquals(code, Playfair.encrypt(result.plaintext(), result.key()));
+        }
+    }
+
+    private static void playfairCrackErrors() {
+        assertThrows(() -> PlayfairCracker.crack(null));
+        assertThrows(() -> PlayfairCracker.crack("BMODZBXDNABEKUDMUIXMMOUVIF"));
+        assertThrows(() -> PlayfairCracker.crack(Playfair.encrypt(ALICE, "KEY") + "A"));
+    }
+
+    private static void cliPlayfairCrack() {
+        String code = Playfair.encrypt(ALICE, "WONDERLAND");
+        Cli result = cli(code.toLowerCase(), "--cipher", "playfair", "crack");
+        assertEquals("0", String.valueOf(result.code));
+        String[] lines = result.out.split("\n");
+        assertTrue(lines.length == 2 && lines[0].matches("Key: [A-IK-Z]{25}"), "unexpected output " + result.out);
+        assertEquals(Playfair.decrypt(code, "WONDERLAND"), lines[1]);
+        Cli shortText = cli("", "--cipher", "playfair", "crack", "bmod zbxd nabe");
+        assertTrue(shortText.code == 1 && shortText.err.contains("at least") && !shortText.err.contains("--caps"),
+            "short text should exit 1 without suggesting --caps: " + shortText.err);
+        assertEquals("2", String.valueOf(cli("x", "--cipher", "playfair", "crack", "--max-key-length", "3").code));
     }
 
     private record Cli(int code, String out, String err) {
