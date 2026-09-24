@@ -3,8 +3,9 @@
 A small Java implementation of the [Vigenère cipher](https://en.wikipedia.org/wiki/Vigen%C3%A8re_cipher),
 usable from the command line or as a library, with an optional Base64 mode for encrypting any Unicode text,
 and a cracker that recovers the key of English ciphertext without knowing it.
+It also includes the [Caesar](#caesar-cipher) cipher, with its own cracker, and the [Playfair](#playfair-cipher) cipher.
 
-> **Not for real security.** Vigenère is a classical cipher that can be broken with pen-and-paper
+> **Not for real security.** These are classical ciphers. Vigenère that can be broken with pen-and-paper
 > frequency analysis, as the [cracker](#breaking-the-cipher) below shows. This project is for learning
 > and fun. Use a modern library for anything that matters.
 
@@ -44,18 +45,19 @@ javac *.java
 
 ```
 java Vigenere <encrypt|decrypt> <key> [text...] [options]
-java Vigenere crack [text...] [--caps] [--max-key-length <n>]
+java Vigenere crack [text...] [--cipher caesar] [--caps] [--max-key-length <n>]
 ```
 
 The text can be given as arguments or piped in on standard input.
 
 | Option | Meaning |
 | --- | --- |
+| `--cipher <name>` | `vigenere` (default), [`caesar`](#caesar-cipher) or [`playfair`](#playfair-cipher). |
 | `--alphabet <chars>` | Alphabet to use. Default is `A`–`Z`, or the Base64 characters with `--base64`. |
 | `--caps` | Uppercase the text and key first. |
 | `--trim` | Remove characters that are not in the alphabet. |
 | `--base64` | Base64-encode the text before encrypting, so any Unicode text works. Cannot be combined with `--caps` or `--trim`. |
-| `--max-key-length <n>` | Longest key `crack` tries. Default 20. |
+| `--max-key-length <n>` | Longest key `crack` tries. Default 20. Vigenère only. |
 | `-h`, `--help` | Show help. |
 
 Examples:
@@ -115,6 +117,65 @@ It needs enough text. Across 1,500 random keys of 1–12 letters, it recovered e
 about 30 letters of ciphertext per key letter. Only uppercase `A`–`Z` is analysed, so use `--caps` for
 lowercase ciphertext.
 
+## Caesar cipher
+
+Every letter is shifted by the same amount, so the key is a number: the shift. It is a Vigenère cipher
+with a one-letter key, so it works with every option above, including `--alphabet` and `--base64`.
+Negative shifts and shifts larger than the alphabet wrap around.
+
+```sh
+$ java Vigenere --cipher caesar encrypt 3 "THE QUICK BROWN FOX"
+WKH TXLFN EURZQ IRA
+
+$ java Vigenere --cipher caesar decrypt 3 "WKH TXLFN EURZQ IRA"
+THE QUICK BROWN FOX
+```
+
+`crack --cipher caesar` tries all 26 shifts and keeps the one whose letters look most like English,
+as for each column of a Vigenère key. It prints the shift as the key:
+
+```sh
+$ java Vigenere --cipher caesar crack "PHHW PH DW WKH VWDWLRQ DW QRRQ"
+Key: 3
+MEET ME AT THE STATION AT NOON
+```
+
+It needs at least 12 letters, and an ordinary sentence or two is usually enough. Very unusual text, such
+as a pangram, can fool it.
+
+## Playfair cipher
+
+Playfair encrypts pairs of letters using a 5×5 grid. The grid holds the letters of the key, without
+repeats, followed by the rest of the alphabet. There are only 25 cells, so `J` is treated as `I`.
+With the key `PLAYFAIR EXAMPLE`:
+
+```
+P L A Y F
+I R E X M
+B C D G H
+K N O Q S
+T U V W Z
+```
+
+Each pair of letters is replaced by the letters to their right if they share a row, by the letters below
+them if they share a column, and otherwise by the letters at the other two corners of their rectangle,
+in the same rows. Rows and columns wrap around.
+
+```sh
+$ java Vigenere --cipher playfair encrypt "playfair example" "Hide the gold in the tree stump"
+BMODZBXDNABEKUDMUIXMMOUVIF
+
+$ java Vigenere --cipher playfair decrypt "playfair example" BMODZBXDNABEKUDMUIXMMOUVIF
+HIDETHEGOLDINTHETREXESTUMP
+```
+
+Only the letters `A`–`Z` of the text and key are used, in either case, so `--caps` and `--trim` are implied
+and `--alphabet` and `--base64` are not supported. A pair cannot hold the same letter twice, so an `X` is
+put between doubled letters (`TREE` becomes `TR EX ES`), and an `X` is added to an odd number of letters
+(a `Q` if the last letter is itself an `X`). Decryption cannot tell these fillers apart from real letters,
+so it leaves them in, as in `TREXES` above. Ciphertext with an odd number of letters, or a pair of the same
+letter, is rejected. There is no Playfair cracker.
+
 ## Library
 
 ```java
@@ -137,9 +198,21 @@ var result = VigenereCracker.crack(ciphertext);   // result.key(), result.plaint
 VigenereCracker.findKey(ciphertext, 5);           // best key when the length is known
 ```
 
+Caesar has the same methods as `Vigenere`, with a number as the key, and Playfair has two static methods:
+
+```java
+Caesar c = new Caesar("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+c.encrypt("THE QUICK BROWN FOX", 3);                // "WKH TXLFN EURZQ IRA"
+c.decrypt("WKH TXLFN EURZQ IRA", 3);                // "THE QUICK BROWN FOX"
+CaesarCracker.crack(ciphertext);                    // result.shift(), result.plaintext()
+
+Playfair.encrypt("Hide the gold", "playfair example");   // "BMODZBXDNAGE"
+Playfair.decrypt("BMODZBXDNAGE", "PLAYFAIR EXAMPLE");    // "HIDETHEGOLDX"
+```
+
 `IllegalArgumentException` is thrown for a null argument, a null alphabet, a key character that is not in
 the alphabet, ciphertext that does not decode as Base64, or too little text to crack. An empty key or alphabet returns the
-text unchanged.
+text unchanged. Playfair also throws it for ciphertext it could not have produced.
 
 ## Running the tests
 
