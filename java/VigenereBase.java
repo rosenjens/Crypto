@@ -43,10 +43,11 @@ class VigenereBase {
         }
         int n = alphabet.length();
         StringBuilder str = new StringBuilder(s.length());
+        int k = 0;
         for (int i = 0; i < s.length(); i++){
             int c = alphabet.indexOf(s.charAt(i));
             if (c != -1){
-                int shift = shifts[i % shifts.length];
+                int shift = shifts[k++ % shifts.length];
                 if (sign == '+'){
                     str.append(alphabet.charAt((c + shift) % n));
                 }else{
