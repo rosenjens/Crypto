@@ -1,3 +1,7 @@
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,6 +31,12 @@ public class VigenereTest {
         test("null arguments are rejected", VigenereTest::nulls);
         test("setAlphabet changes the alphabet", VigenereTest::setAlphabet);
         test("base64 round trip with unicode", VigenereTest::base64RoundTrip);
+        test("decrypt with toCapitals and trim", VigenereTest::decryptCapitalsAndTrim);
+        test("cli encrypts and decrypts text arguments", VigenereTest::cliArgs);
+        test("cli reads standard input", VigenereTest::cliStdin);
+        test("cli options", VigenereTest::cliOptions);
+        test("cli base64 round trip", VigenereTest::cliBase64);
+        test("cli reports errors", VigenereTest::cliErrors);
 
         System.out.println(passed + " passed, " + failures.size() + " failed");
         for (String f : failures) {
@@ -114,6 +124,76 @@ public class VigenereTest {
         String code = v.encryptBase64(plain, "Key9");
         assertTrue(!code.equals(plain), "ciphertext should differ from plaintext");
         assertEquals(plain, v.decryptBase64(code, "Key9"));
+    }
+
+    private static void decryptCapitalsAndTrim() {
+        Vigenere v = new Vigenere(UPPER);
+        assertEquals("ATTACKATDAWN", v.decrypt("lxfopv ef rnhr", "lemon", true, true));
+        assertEquals("ATTACK AT DAWN", v.decrypt("lxfopv ef rnhr", "lemon", true, false));
+    }
+
+    private static void cliArgs() {
+        Cli r = cli("", "encrypt", "LEMON", "ATTACK", "AT", "DAWN");
+        assertEquals("0|LXFOPV EF RNHR\n|", r.toString());
+        assertEquals("0|ATTACK AT DAWN\n|", cli("", "decrypt", "LEMON", "LXFOPV EF RNHR").toString());
+    }
+
+    private static void cliStdin() {
+        assertEquals("0|LXFOPV EF RNHR\n|", cli("ATTACK AT DAWN\n", "encrypt", "LEMON").toString());
+        assertEquals("0|LXFOPV\nEF RNHR\n|", cli("ATTACK\nAT DAWN", "encrypt", "LEMON").toString());
+    }
+
+    private static void cliOptions() {
+        assertEquals("0|LXFOPVEFRNHR\n|",
+            cli("", "encrypt", "lemon", "attack at dawn", "--caps", "--trim").toString());
+        assertEquals("0|1001\n|", cli("", "--alphabet", "01", "encrypt", "1", "0110").toString());
+        Cli help = cli("", "--help");
+        assertTrue(help.code == 0 && help.out.startsWith("Usage:"), "help should print usage");
+    }
+
+    private static void cliBase64() {
+        String plain = "h\u00e9llo \u2713";
+        Cli enc = cli(plain, "encrypt", "Key9", "--base64");
+        assertEquals("0", String.valueOf(enc.code));
+        Cli dec = cli(enc.out, "decrypt", "Key9", "--base64");
+        assertEquals("0|" + plain + "\n|", dec.toString());
+    }
+
+    private static void cliErrors() {
+        assertEquals("2", String.valueOf(cli("", "encrypt").code));
+        assertEquals("2", String.valueOf(cli("", "scramble", "KEY", "X").code));
+        assertEquals("2", String.valueOf(cli("", "encrypt", "KEY", "X", "--bogus").code));
+        assertEquals("2", String.valueOf(cli("", "encrypt", "KEY", "X", "--alphabet").code));
+        assertEquals("2", String.valueOf(cli("", "encrypt", "KEY", "X", "--base64", "--trim").code));
+        Cli bad = cli("", "encrypt", "KEY!", "HELLO");
+        assertTrue(bad.code == 1 && bad.err.contains("'!'"), "bad key char should exit 1: " + bad.err);
+        Cli badB64 = cli("", "decrypt", "K", "--base64", "!!x");
+        assertTrue(badB64.code == 1 && badB64.err.startsWith("Error: could not decrypt"),
+            "bad base64 should exit 1: " + badB64.err);
+    }
+
+    private static final class Cli {
+        int code;
+        String out;
+        String err;
+
+        @Override
+        public String toString() {
+            return code + "|" + out + "|" + err;
+        }
+    }
+
+    private static Cli cli(String stdin, String... args) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        Cli r = new Cli();
+        r.code = Vigenere.run(args,
+            new ByteArrayInputStream(stdin.getBytes(StandardCharsets.UTF_8)),
+            new PrintStream(out, true, StandardCharsets.UTF_8),
+            new PrintStream(err, true, StandardCharsets.UTF_8));
+        r.out = out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
+        r.err = err.toString(StandardCharsets.UTF_8);
+        return r;
     }
 
     // --- minimal test harness ---
