@@ -174,11 +174,7 @@ public class VigenereTest {
             "bad base64 should exit 1: " + badB64.err);
     }
 
-    private static final class Cli {
-        int code;
-        String out;
-        String err;
-
+    private record Cli(int code, String out, String err) {
         @Override
         public String toString() {
             return code + "|" + out + "|" + err;
@@ -186,16 +182,14 @@ public class VigenereTest {
     }
 
     private static Cli cli(String stdin, String... args) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ByteArrayOutputStream err = new ByteArrayOutputStream();
-        Cli r = new Cli();
-        r.code = Vigenere.run(args,
+        var out = new ByteArrayOutputStream();
+        var err = new ByteArrayOutputStream();
+        int code = Vigenere.run(args,
             new ByteArrayInputStream(stdin.getBytes(StandardCharsets.UTF_8)),
             new PrintStream(out, true, StandardCharsets.UTF_8),
             new PrintStream(err, true, StandardCharsets.UTF_8));
-        r.out = out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
-        r.err = err.toString(StandardCharsets.UTF_8);
-        return r;
+        return new Cli(code, out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n"),
+            err.toString(StandardCharsets.UTF_8));
     }
 
     // --- minimal test harness ---

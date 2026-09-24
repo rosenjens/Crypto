@@ -1,9 +1,10 @@
-import java.util.Base64;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
 public class Vigenere extends VigenereBase{
 
@@ -30,10 +31,12 @@ public class Vigenere extends VigenereBase{
             str = str.toUpperCase();
         }
         if (trim) {
-            StringBuilder newStr = new StringBuilder(str.length());
-            for (char c : str.toCharArray())
-                if (getAlphabet().indexOf(c) != -1)
+            var newStr = new StringBuilder(str.length());
+            for (char c : str.toCharArray()) {
+                if (getAlphabet().indexOf(c) != -1) {
                     newStr.append(c);
+                }
+            }
             str = newStr.toString();
         }
         return str;
@@ -50,22 +53,23 @@ public class Vigenere extends VigenereBase{
     public String decryptBase64(String code, String key){
         return new String(Base64.getDecoder().decode(decrypt(code, key)), StandardCharsets.UTF_8);
     }
+
     public static final String DEFAULT_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     public static final String BASE64_ALPHABET =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 
-    private static final String USAGE =
-        "Usage: java Vigenere <encrypt|decrypt> <key> [text...] [options]\n"
-        + "\n"
-        + "Reads the text from standard input if none is given.\n"
-        + "\n"
-        + "Options:\n"
-        + "  --alphabet <chars>  alphabet to use (default A-Z, or the Base64\n"
-        + "                      characters with --base64)\n"
-        + "  --caps              uppercase the text and key first\n"
-        + "  --trim              drop characters that are not in the alphabet\n"
-        + "  --base64            Base64-wrap the text so any Unicode text works\n"
-        + "  -h, --help          show this help";
+    private static final String USAGE = """
+        Usage: java Vigenere <encrypt|decrypt> <key> [text...] [options]
+
+        Reads the text from standard input if none is given.
+
+        Options:
+          --alphabet <chars>  alphabet to use (default A-Z, or the Base64
+                              characters with --base64)
+          --caps              uppercase the text and key first
+          --trim              drop characters that are not in the alphabet
+          --base64            Base64-wrap the text so any Unicode text works
+          -h, --help          show this help""";
 
     public static void main(String[] args) {
         // Match the UTF-8 used for standard input, whatever the platform default.
@@ -78,28 +82,27 @@ public class Vigenere extends VigenereBase{
     static int run(String[] args, InputStream in, PrintStream out, PrintStream err) {
         String alphabet = null;
         boolean caps = false, trim = false, base64 = false;
-        java.util.List<String> positional = new java.util.ArrayList<>();
+        List<String> positional = new ArrayList<>();
 
         for (int i = 0; i < args.length; i++) {
-            String a = args[i];
-            if (a.equals("-h") || a.equals("--help")) {
-                out.println(USAGE);
-                return 0;
-            } else if (a.equals("--alphabet")) {
-                if (++i >= args.length) {
-                    return usageError(err, "--alphabet needs a value");
+            switch (args[i]) {
+                case "-h", "--help" -> {
+                    out.println(USAGE);
+                    return 0;
                 }
-                alphabet = args[i];
-            } else if (a.equals("--caps")) {
-                caps = true;
-            } else if (a.equals("--trim")) {
-                trim = true;
-            } else if (a.equals("--base64")) {
-                base64 = true;
-            } else if (a.startsWith("--")) {
-                return usageError(err, "unknown option " + a);
-            } else {
-                positional.add(a);
+                case "--alphabet" -> {
+                    if (++i >= args.length) {
+                        return usageError(err, "--alphabet needs a value");
+                    }
+                    alphabet = args[i];
+                }
+                case "--caps" -> caps = true;
+                case "--trim" -> trim = true;
+                case "--base64" -> base64 = true;
+                case String a when a.startsWith("--") -> {
+                    return usageError(err, "unknown option " + a);
+                }
+                case String a -> positional.add(a);
             }
         }
 
@@ -132,7 +135,7 @@ public class Vigenere extends VigenereBase{
         }
 
         try {
-            Vigenere v = new Vigenere(alphabet);
+            var v = new Vigenere(alphabet);
             boolean enc = mode.equals("encrypt");
             String result;
             if (base64 && enc) {
@@ -163,13 +166,7 @@ public class Vigenere extends VigenereBase{
 
     /** Reads all of the stream as UTF-8, dropping one trailing newline. */
     private static String readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream buf = new ByteArrayOutputStream();
-        byte[] chunk = new byte[8192];
-        int n;
-        while ((n = in.read(chunk)) != -1) {
-            buf.write(chunk, 0, n);
-        }
-        String s = new String(buf.toByteArray(), StandardCharsets.UTF_8);
+        String s = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         if (s.endsWith("\r\n")) {
             return s.substring(0, s.length() - 2);
         }

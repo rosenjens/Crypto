@@ -20,9 +20,18 @@ result LXFOPV EF RNHR
 Characters that are not in the alphabet, such as spaces and punctuation, pass through unchanged
 and do not use up a key letter. Decryption shifts backwards by the same amounts.
 
-## Building
+## Requirements
 
-Requires Java 10 or later. There are no dependencies.
+Java 25 or later. There are no dependencies and no build tool.
+
+Run it straight from the source files, with no compile step:
+
+```sh
+cd java
+java Vigenere.java encrypt LEMON "ATTACK AT DAWN"
+```
+
+Or compile once for faster start-up, and then use `java Vigenere` as in the examples below:
 
 ```sh
 cd java
@@ -96,7 +105,7 @@ text unchanged.
 
 ```sh
 cd java
-javac *.java && java VigenereTest
+java VigenereTest.java
 ```
 
 ## License
