@@ -3,7 +3,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 
 public class Vigenere extends VigenereBase{
@@ -41,26 +40,16 @@ public class Vigenere extends VigenereBase{
     }
 
     public String encryptBase64(String str, String key){
-        String code = "";
-        try {
-            code = Base64.getEncoder().encodeToString(str.getBytes("utf-8"));
-
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+        if (str == null){
+            throw new IllegalArgumentException();
         }
-        return encrypt(code,key) ;
+        String code = Base64.getEncoder().encodeToString(str.getBytes(StandardCharsets.UTF_8));
+        return encrypt(code, key);
     }
 
     public String decryptBase64(String code, String key){
-        String str = "";
-        try {
-            str = new String(Base64.getDecoder().decode(decrypt(code,key)), "utf-8");
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        return str;
+        return new String(Base64.getDecoder().decode(decrypt(code, key)), StandardCharsets.UTF_8);
     }
-
     public static final String DEFAULT_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     public static final String BASE64_ALPHABET =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";

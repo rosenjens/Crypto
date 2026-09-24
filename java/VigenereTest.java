@@ -109,6 +109,8 @@ public class VigenereTest {
         assertThrows(() -> v.setAlphabet(null));
         assertThrows(() -> v.encrypt(null, "KEY"));
         assertThrows(() -> v.encrypt("HELLO", null));
+        assertThrows(() -> v.encryptBase64(null, "KEY"));
+        assertThrows(() -> v.decryptBase64(null, "KEY"));
     }
 
     private static void setAlphabet() {
